@@ -19,7 +19,6 @@ enum class SettoEnvironment(val baseURL: String) {
 }
 
 data class SettoConfig(
-    val merchantId: String,
     val environment: SettoEnvironment,
     val idpToken: String? = null,  // IdP 토큰 (있으면 자동로그인)
     val debug: Boolean = false
@@ -60,7 +59,7 @@ object SettoSDK {
      */
     fun initialize(config: SettoConfig) {
         this.config = config
-        debugLog("Initialized with merchantId: ${config.merchantId}")
+        debugLog("Initialized with environment: ${config.environment}")
     }
 
     /**
@@ -72,6 +71,7 @@ object SettoSDK {
      */
     fun openPayment(
         context: Context,
+        merchantId: String,
         amount: String,
         orderId: String? = null,
         callback: (PaymentResult) -> Unit
@@ -84,11 +84,11 @@ object SettoSDK {
         if (cfg.idpToken != null) {
             // IdP Token 있음 → PaymentToken 발급 → Fragment로 전달
             debugLog("Requesting PaymentToken...")
-            requestPaymentToken(context, amount, orderId, cfg, callback)
+            requestPaymentToken(context, merchantId, amount, orderId, cfg, callback)
         } else {
             // IdP Token 없음 → Query param으로 직접 전달
             val uri = Uri.parse("${cfg.environment.baseURL}/pay/wallet").buildUpon()
-                .appendQueryParameter("merchant_id", cfg.merchantId)
+                .appendQueryParameter("merchant_id", merchantId)
                 .appendQueryParameter("amount", amount)
                 .apply { orderId?.let { appendQueryParameter("order_id", it) } }
                 .build()
@@ -100,6 +100,7 @@ object SettoSDK {
 
     private fun requestPaymentToken(
         context: Context,
+        merchantId: String,
         amount: String,
         orderId: String?,
         cfg: SettoConfig,
@@ -114,10 +115,10 @@ object SettoSDK {
                 connection.doOutput = true
 
                 val body = JSONObject().apply {
-                    put("merchantId", cfg.merchantId)
+                    put("merchant_id", merchantId)
                     put("amount", amount)
-                    orderId?.let { put("orderId", it) }
-                    put("idpToken", cfg.idpToken)
+                    orderId?.let { put("order_id", it) }
+                    put("idp_token", cfg.idpToken)
                 }
 
                 connection.outputStream.bufferedWriter().use { it.write(body.toString()) }
@@ -133,7 +134,7 @@ object SettoSDK {
 
                 val response = connection.inputStream.bufferedReader().use { it.readText() }
                 val json = JSONObject(response)
-                val paymentToken = json.getString("paymentToken")
+                val paymentToken = json.getString("payment_token")
 
                 // Fragment로 전달 (보안: 서버 로그에 남지 않음)
                 val encodedToken = URLEncoder.encode(paymentToken, "UTF-8")
@@ -155,14 +156,14 @@ object SettoSDK {
     /**
      * 결제 상태 조회
      */
-    suspend fun getPaymentInfo(paymentId: String): Result<PaymentInfo> = withContext(Dispatchers.IO) {
+    suspend fun getPaymentInfo(merchantId: String, paymentId: String): Result<PaymentInfo> = withContext(Dispatchers.IO) {
         val cfg = config ?: return@withContext Result.failure(Exception("SDK not initialized"))
 
         try {
             val url = URL("${cfg.environment.baseURL}/api/external/payment/$paymentId")
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
-            connection.setRequestProperty("X-Merchant-ID", cfg.merchantId)
+            connection.setRequestProperty("X-Merchant-ID", merchantId)
 
             val responseCode = connection.responseCode
             if (responseCode != HttpURLConnection.HTTP_OK) {

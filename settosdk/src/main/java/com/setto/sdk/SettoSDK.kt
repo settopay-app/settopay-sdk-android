@@ -20,7 +20,6 @@ enum class SettoEnvironment(val baseURL: String) {
 
 data class SettoConfig(
     val environment: SettoEnvironment,
-    val idpToken: String? = null,  // IdP 토큰 (있으면 자동로그인)
     val debug: Boolean = false
 )
 
@@ -65,15 +64,21 @@ object SettoSDK {
     /**
      * 결제 요청
      *
-     * IdP Token 유무에 따라 자동로그인 여부가 결정됩니다.
+     * 항상 PaymentToken을 발급받아서 결제 페이지로 전달합니다.
      * - IdP Token 없음: Setto 로그인 필요
-     * - IdP Token 있음: PaymentToken 발급 후 자동로그인
+     * - IdP Token 있음: 자동로그인
+     *
+     * @param context Android Context
+     * @param merchantId 머천트 ID
+     * @param amount 결제 금액
+     * @param idpToken IdP 토큰 (선택, 있으면 자동로그인)
+     * @param callback 결제 결과 콜백
      */
     fun openPayment(
         context: Context,
         merchantId: String,
         amount: String,
-        orderId: String? = null,
+        idpToken: String? = null,
         callback: (PaymentResult) -> Unit
     ) {
         val cfg = config ?: run {
@@ -81,28 +86,15 @@ object SettoSDK {
             return
         }
 
-        if (cfg.idpToken != null) {
-            // IdP Token 있음 → PaymentToken 발급 → Fragment로 전달
-            debugLog("Requesting PaymentToken...")
-            requestPaymentToken(context, merchantId, amount, orderId, cfg, callback)
-        } else {
-            // IdP Token 없음 → Query param으로 직접 전달
-            val uri = Uri.parse("${cfg.environment.baseURL}/pay/wallet").buildUpon()
-                .appendQueryParameter("merchant_id", merchantId)
-                .appendQueryParameter("amount", amount)
-                .apply { orderId?.let { appendQueryParameter("order_id", it) } }
-                .build()
-
-            debugLog("Opening payment with Setto login: $uri")
-            openCustomTabs(context, uri, callback)
-        }
+        debugLog("Requesting PaymentToken...")
+        requestPaymentToken(context, merchantId, amount, idpToken, cfg, callback)
     }
 
     private fun requestPaymentToken(
         context: Context,
         merchantId: String,
         amount: String,
-        orderId: String?,
+        idpToken: String?,
         cfg: SettoConfig,
         callback: (PaymentResult) -> Unit
     ) {
@@ -117,8 +109,9 @@ object SettoSDK {
                 val body = JSONObject().apply {
                     put("merchant_id", merchantId)
                     put("amount", amount)
-                    orderId?.let { put("order_id", it) }
-                    put("idp_token", cfg.idpToken)
+                    if (idpToken != null) {
+                        put("idp_token", idpToken)
+                    }
                 }
 
                 connection.outputStream.bufferedWriter().use { it.write(body.toString()) }
@@ -140,7 +133,7 @@ object SettoSDK {
                 val encodedToken = URLEncoder.encode(paymentToken, "UTF-8")
                 val uri = Uri.parse("${cfg.environment.baseURL}/pay/wallet#pt=$encodedToken")
 
-                debugLog("Opening payment with auto-login")
+                debugLog("Opening payment page")
                 android.os.Handler(context.mainLooper).post {
                     openCustomTabs(context, uri, callback)
                 }

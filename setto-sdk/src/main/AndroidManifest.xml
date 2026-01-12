@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Chrome Custom Tabs 사용을 위한 의존성 -->
-    <!-- 고객사 앱의 AndroidManifest.xml에서 Deep Link Activity를 별도로 등록해야 합니다 -->
-</manifest>

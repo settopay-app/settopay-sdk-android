@@ -33,6 +33,16 @@ data class PaymentResult(
     val status: PaymentStatus,
     val paymentId: String? = null,
     val txHash: String? = null,
+    /** 결제자 지갑 주소 (서버에서 반환) */
+    val fromAddress: String? = null,
+    /** 결산 수신자 주소 (pool이 아닌 최종 수신자, 서버에서 반환) */
+    val toAddress: String? = null,
+    /** 결제 금액 (USD, 예: "10.00", 서버에서 반환) */
+    val amount: String? = null,
+    /** 체인 ID (예: 8453, 56, 900001, 서버에서 반환) */
+    val chainId: Int? = null,
+    /** 토큰 심볼 (예: "USDC", "USDT", 서버에서 반환) */
+    val tokenSymbol: String? = null,
     val error: String? = null
 )
 
@@ -197,6 +207,12 @@ object SettoSDK {
         val statusString = uri.getQueryParameter("status") ?: ""
         val paymentId = uri.getQueryParameter("payment_id")
         val txHash = uri.getQueryParameter("tx_hash")
+        val fromAddress = uri.getQueryParameter("from_address")
+        val toAddress = uri.getQueryParameter("to_address")
+        val amount = uri.getQueryParameter("amount")
+        val chainIdStr = uri.getQueryParameter("chain_id")
+        val chainId = chainIdStr?.toIntOrNull()
+        val tokenSymbol = uri.getQueryParameter("token_symbol")
         val errorMsg = uri.getQueryParameter("error")
 
         val status = when (statusString) {
@@ -209,6 +225,11 @@ object SettoSDK {
             status = status,
             paymentId = paymentId,
             txHash = txHash,
+            fromAddress = fromAddress,
+            toAddress = toAddress,
+            amount = amount,
+            chainId = chainId,
+            tokenSymbol = tokenSymbol,
             error = errorMsg
         )
 

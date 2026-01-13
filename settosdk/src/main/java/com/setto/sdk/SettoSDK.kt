@@ -13,9 +13,14 @@ import java.net.URLEncoder
 
 // MARK: - Types
 
-enum class SettoEnvironment(val baseURL: String) {
-    DEV("https://dev-wallet.settopay.com"),
-    PROD("https://wallet.settopay.com")
+enum class SettoEnvironment(
+    /** API 서버 (백엔드 gRPC-Gateway) */
+    val apiURL: String,
+    /** 웹앱 (프론트엔드 결제 페이지) */
+    val webAppURL: String
+) {
+    DEV("https://dev-wallet.settopay.com", "https://dev-app.settopay.com"),
+    PROD("https://wallet.settopay.com", "https://app.settopay.com")
 }
 
 data class SettoConfig(
@@ -110,7 +115,7 @@ object SettoSDK {
     ) {
         Thread {
             try {
-                val url = URL("${cfg.environment.baseURL}/api/external/payment/token")
+                val url = URL("${cfg.environment.apiURL}/api/external/payment/token")
                 val connection = url.openConnection() as HttpURLConnection
                 connection.requestMethod = "POST"
                 connection.setRequestProperty("Content-Type", "application/json")
@@ -141,7 +146,7 @@ object SettoSDK {
 
                 // Fragment로 전달 (보안: 서버 로그에 남지 않음)
                 val encodedToken = URLEncoder.encode(paymentToken, "UTF-8")
-                val uri = Uri.parse("${cfg.environment.baseURL}/pay/wallet#pt=$encodedToken")
+                val uri = Uri.parse("${cfg.environment.webAppURL}/pay/wallet#pt=$encodedToken")
 
                 debugLog("Opening payment page")
                 android.os.Handler(context.mainLooper).post {
@@ -163,7 +168,7 @@ object SettoSDK {
         val cfg = config ?: return@withContext Result.failure(Exception("SDK not initialized"))
 
         try {
-            val url = URL("${cfg.environment.baseURL}/api/external/payment/$paymentId")
+            val url = URL("${cfg.environment.apiURL}/api/external/payment/$paymentId")
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
             connection.setRequestProperty("X-Merchant-ID", merchantId)
